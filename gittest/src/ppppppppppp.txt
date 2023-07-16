@@ -2,3 +2,21 @@
 100755 blob 36d595fad06c2f094bd1e84617f610e7637adeee	executable.sh
 100644 blob ea6515f5e26fbe16ef77fbac669eacc564d8129a	lol1.txt
 100644 blob 45e35e2fa0946bf0fbb479e2e1baa7315d569b38	ppppppppppp.txt
+
+100644 blob d670460b4b4aece5915caf5c68d12f560a9fe3e4	file1.txt
+100644 blob b1d5781111d84f7b3fe45a0852e59758cd7a87e5	file2.txt
+
+
+
+tree 258\0100644 blob a44ec59e58af3ec083259319495d9033f9fa4c72\tcopy.rs\n100755 blob 36d595fad06c2f094bd1e84617f610e7637adeee\texecutable.sh\n100644 blob ea6515f5e26fbe16ef77fbac669eacc564d8129a\tlol1.txt\n100644 blob 45e35e2fa0946bf0fbb479e2e1baa7315d569b38\tppppppppppp.txt
+
+git ls-tree 25ef1f | awk -b 'sprintf("%d %s\0%s", $1, $4, $3)' | shasum
+
+
+git ls-tree 25ef1f | awk -b 'function bsha(asha)\
+{patsplit(asha, x, /../); h=""; for(j in x) h=h sprintf("%c", strtonum("0x" x[j])); return(h)}\
+{t=t sprintf("%d %s\0%s", $1, $4, bsha($3))} END {printf("tree %s\0%s", length(t), t)}' | shasum
+
+git ls-tree 25ef1f | awk -b 'function bsha(asha)\
+{patsplit(asha, x, /../); h=""; for(j in x) h=h sprintf("%c", strtonum("0x" x[j])); return(h)}\
+{t=t sprintf("%d %s\0%s", $1, $4, bsha($3))} END {printf("tree %s\0%s", length(t), t)}' | shasum
