@@ -6,7 +6,7 @@ members = [
 ]
 
 [workspace.dependencies]
-risc0-build = { version = "0.16.1" }
+# risc0-build = { version = "0.16.1" }
 
 # Always optimize; building and running the guest takes much longer without optimization.
 [profile.dev]
