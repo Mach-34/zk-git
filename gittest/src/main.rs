@@ -26,8 +26,9 @@ fn main() {
     // // println!("mode: {:o}", get_file_mode(&path));
     // let entry = blob_git_tree_entry(&path);
     // println!("Entry: {entry}");
-    let path = env::current_dir().unwrap().join("gittest/src");
-    build_git_tree_object(&path);
+    let path = env::current_dir().unwrap().join("gittest/src/pewpew");
+    let hash = build_git_tree_object(&path);
+    println!("hash: {:x?}", &hash[..]);
 }
 
 /**
@@ -45,7 +46,7 @@ fn get_directory_files(path: &PathBuf) -> Vec<PathBuf> {
  * Given a
  * @todo: recursive subfolder building (should call itself?)
  */
-fn build_git_tree_object(path: &PathBuf) {
+fn build_git_tree_object(path: &PathBuf) -> Vec<u8> {
     // get all files in the directory
     let files = get_directory_files(&path);
     let mut entries = Vec::<(String, String)>::new();
@@ -60,7 +61,9 @@ fn build_git_tree_object(path: &PathBuf) {
     let content = entries
         .iter()
         .fold(String::new(), |acc, entry| format!("{}\n{}", acc, *entry));
-    println!("content: {content:?}");
+    println!("Content: {content}");
+    // compute the `git hash-object` sha1 hash of the tree object
+    git_hash_object(GitObject::Tree, &content)
 }
 
 /**
@@ -69,13 +72,19 @@ fn build_git_tree_object(path: &PathBuf) {
  * @param path The path to the file to hash
  * @return The sha1 hash of the file with blob header
  */
-fn git_hash_object(obj: GitObject, path: &PathBuf) -> Vec<u8> {
-    // get file contents
-    let content = fs::read_to_string(path).unwrap();
+fn git_hash_object(obj: GitObject, content: &String) -> Vec<u8> {
     // get number of bytes in contents
+    match obj {
+        GitObject::Tree => println!("Preimage: {content}"),
+        _ => (),
+    }
     let length = content.as_bytes().len();
     // build preimage of blob as header + content
     let preimage = format!("{} {}\0{}", obj.as_str(), length, content);
+    match obj {
+        GitObject::Tree => println!("Preimage: {content}"),
+        _ => (),
+    }
     // hash preimage
     let mut hasher = Sha1::new();
     hasher.update(preimage.as_bytes());
@@ -93,12 +102,14 @@ fn git_hash_object(obj: GitObject, path: &PathBuf) -> Vec<u8> {
  *   - string representing the blob entry in tree object
  */
 fn blob_git_tree_entry(path: &PathBuf) -> (String, String) {
+    // get file contents
+    let content = fs::read_to_string(path).unwrap();
     // get compatible `git hash-object` sha1 hash of blob
-    let hash = hex::encode(git_hash_object(GitObject::Blob, &path));
+    let hash = hex::encode(git_hash_object(GitObject::Blob, &content));
     // get filemode & name
     let mode = fs::metadata(&path).unwrap().mode();
     let name = *(&path.file_name().unwrap().to_str().unwrap());
     // build tree entry
-    let entry = format!("{mode:o} blob {hash}\t{name}");
+    let entry = format!("{mode:o} blob {hash}    {name}");
     (name.to_string(), entry)
 }
