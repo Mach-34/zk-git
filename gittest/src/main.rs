@@ -1,6 +1,9 @@
 use hex::encode;
 use sha1::{Digest, Sha1};
-use std::{env, fs, os::unix::fs::MetadataExt, path::PathBuf};
+use std::{env, fs, os::unix::fs::MetadataExt, path::PathBuf, io::Write as IoWrite, fmt::Write};
+use flate2::write::DeflateEncoder;
+
+pub(crate) const SPACE: &[u8; 1] = b" ";
 
 enum GitObject {
     Blob,
@@ -36,7 +39,11 @@ fn main() {
     // println!("Entry: {entry}");
     let path = env::current_dir().unwrap().join("gittest/src/pewpew");
     let hash = build_git_tree_object(&path);
-    println!("hash: {:x?}", hex::encode(hash));
+    println!("hash: {}", hex::encode(&hash));
+    // assert_eq!(
+    //     "25ef1f3d9781104304577434c49c7cb8eeaad4c2",
+    //     hex::encode(&hash)
+    // );
 }
 
 /**
@@ -69,14 +76,10 @@ fn build_git_tree_object(path: &PathBuf) -> Vec<u8> {
     let content = entries
         .iter()
         .fold(String::new(), |acc, entry| format!("{}\n{}", acc, *entry));
-    let content = content[2..].to_string();
-    println!("content: {}", content);
-    println!("content2: {:?}", content);
+    let content = content[1..].to_string();
+    println!("Content: {}", content);
     // compute the `git hash-object` sha1 hash of the tree object
     git_hash_object(GitObject::Tree, &content)
-    // let mut hasher = Sha1::new();
-    // hasher.update(content.as_bytes());
-    // hasher.finalize().as_slice().to_owned()
 }
 
 /**
@@ -88,13 +91,27 @@ fn build_git_tree_object(path: &PathBuf) -> Vec<u8> {
 fn git_hash_object(obj: GitObject, content: &String) -> Vec<u8> {
     // get number of bytes in contents
     let length = content.as_bytes().len();
-    println!("Content3: {}", content);
     // build preimage of blob as header + content
-    let preimage = format!("{} {}\0{}", obj.as_str(), length, content);
-    println!("preimage: {}", preimage);
+    // let preimage = format!("{} {}\0{}", obj.as_str(), length, content);
+    // let mut preimage = String::new();
+    // write!(&mut preimage, "{} {}\0{}", obj.as_str(), length, content).unwrap();
+    // println!("preimage: {}", preimage);
+    let mut preimage = Vec::<u8>::new();
+    preimage.write_all(obj.as_str().as_bytes()).unwrap();
+    preimage.write_all(&[b' ']).unwrap();
+    preimage.write_all(&format!("{}", length).as_bytes()).unwrap();
+    preimage.write_all(&[b'\0']).unwrap();
+    preimage.write_all(content.as_bytes()).unwrap();
+    // let string = String::from_utf8(preimage.clone());
+    // println!("THE FULL THING: {:?}", string);
+    // let compressed = Vec::<u8>::new();
+    // let mut zlib = DeflateEncoder::new(compressed, flate2::Compression::default());
+    // zlib.write_all(preimage.as_slice()).unwrap();
+    // let compressed = zlib.finish().unwrap();
+    // println!("Compressed: {:?}", compressed);
     // hash preimage
     let mut hasher = Sha1::new();
-    hasher.update(preimage.as_bytes());
+    hasher.update(preimage);
     // return compatible `git hash-object` sha1 hash of blob
     hasher.finalize().as_slice().to_owned()
 }
@@ -117,6 +134,20 @@ fn blob_git_tree_entry(path: &PathBuf) -> (String, String) {
     let mode = mask_file_mode(fs::metadata(&path).unwrap().mode());
     let name = *(&path.file_name().unwrap().to_str().unwrap());
     // build tree entry
-    let entry = format!("{mode:o} blob {hash}\t{name}");
-    (name.to_string(), entry)
+    // let entry = format!("{mode:o} blob {hash}\t{name}");
+    let mut preimage = Vec::<u8>::new();
+    preimage.write_all(&format!("{mode:o}",).as_bytes()).unwrap();
+    preimage.write_all(&[b' ']).unwrap();
+    preimage.write_all("blob".as_bytes()).unwrap();
+    preimage.write_all(&[b' ']).unwrap();
+    preimage.write_all(hash.as_bytes()).unwrap();
+    preimage.write_all(&"\u{0009}".as_bytes()).unwrap();
+    // preimage.write_all(&[b' ']).unwrap();
+    preimage.write_all(name.as_bytes()).unwrap();
+
+    let string = String::from_utf8(preimage.clone()).unwrap();
+
+    println!("preimage: {:}", string);
+
+    (name.to_string(), string)
 }
