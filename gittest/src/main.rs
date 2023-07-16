@@ -18,6 +18,14 @@ impl GitObject {
     }
 }
 
+fn mask_file_mode(mode: u32) -> u32 {
+    match mode {
+        0o100664 => 0o100644,
+        0o100775 => 0o100755,
+        _ => mode,
+    }
+}
+
 fn main() {
     // let file = "src/main.rs";
     // let path = env::current_dir().unwrap().join(file);
@@ -28,7 +36,7 @@ fn main() {
     // println!("Entry: {entry}");
     let path = env::current_dir().unwrap().join("gittest/src/pewpew");
     let hash = build_git_tree_object(&path);
-    println!("hash: {:x?}", &hash[..]);
+    println!("hash: {:x?}", hex::encode(hash));
 }
 
 /**
@@ -61,9 +69,14 @@ fn build_git_tree_object(path: &PathBuf) -> Vec<u8> {
     let content = entries
         .iter()
         .fold(String::new(), |acc, entry| format!("{}\n{}", acc, *entry));
-    println!("Content: {content}");
+    let content = content[2..].to_string();
+    println!("content: {}", content);
+    println!("content2: {:?}", content);
     // compute the `git hash-object` sha1 hash of the tree object
     git_hash_object(GitObject::Tree, &content)
+    // let mut hasher = Sha1::new();
+    // hasher.update(content.as_bytes());
+    // hasher.finalize().as_slice().to_owned()
 }
 
 /**
@@ -74,17 +87,11 @@ fn build_git_tree_object(path: &PathBuf) -> Vec<u8> {
  */
 fn git_hash_object(obj: GitObject, content: &String) -> Vec<u8> {
     // get number of bytes in contents
-    match obj {
-        GitObject::Tree => println!("Preimage: {content}"),
-        _ => (),
-    }
     let length = content.as_bytes().len();
+    println!("Content3: {}", content);
     // build preimage of blob as header + content
     let preimage = format!("{} {}\0{}", obj.as_str(), length, content);
-    match obj {
-        GitObject::Tree => println!("Preimage: {content}"),
-        _ => (),
-    }
+    println!("preimage: {}", preimage);
     // hash preimage
     let mut hasher = Sha1::new();
     hasher.update(preimage.as_bytes());
@@ -107,9 +114,9 @@ fn blob_git_tree_entry(path: &PathBuf) -> (String, String) {
     // get compatible `git hash-object` sha1 hash of blob
     let hash = hex::encode(git_hash_object(GitObject::Blob, &content));
     // get filemode & name
-    let mode = fs::metadata(&path).unwrap().mode();
+    let mode = mask_file_mode(fs::metadata(&path).unwrap().mode());
     let name = *(&path.file_name().unwrap().to_str().unwrap());
     // build tree entry
-    let entry = format!("{mode:o} blob {hash}    {name}");
+    let entry = format!("{mode:o} blob {hash}\t{name}");
     (name.to_string(), entry)
 }
